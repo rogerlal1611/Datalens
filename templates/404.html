@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>404 — DataLens</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="upload-page">
+<div class="upload-hero">
+  <div class="hero-glow"></div>
+  <nav class="top-nav">
+    <a href="/" class="logo">◈ DataLens</a>
+  </nav>
+  <div class="hero-content" style="text-align:center">
+    <div class="hero-badge">Error 404</div>
+    <h1 class="hero-title" style="font-size:clamp(48px,8vw,96px)">404</h1>
+    <p class="hero-sub">This page doesn't exist. Maybe you were looking for your dashboard?</p>
+    <a href="/" class="btn-upload" style="display:inline-block;text-decoration:none;max-width:280px;padding:14px 32px">
+      ← Back to DataLens
+    </a>
+  </div>
+</div>
+<script>
+const saved = localStorage.getItem("dl_theme") || "dark";
+document.documentElement.setAttribute("data-theme", saved);
+</script>
+</body>
+</html>

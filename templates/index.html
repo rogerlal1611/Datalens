@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataLens — Sales Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="upload-page">
+
+<div class="upload-hero">
+  <div class="hero-glow"></div>
+
+  <nav class="top-nav">
+    <span class="logo">◈ DataLens</span>
+    <span class="tagline">Sales Intelligence Platform</span>
+    <button class="theme-toggle" id="themeToggle" title="Toggle light/dark mode" aria-label="Toggle theme">
+      <span class="theme-icon">🌙</span>
+    </button>
+  </nav>
+
+  <div class="hero-content">
+    <div class="hero-badge">Analytics Platform</div>
+    <h1 class="hero-title">Turn raw data<br>into clear decisions</h1>
+    <p class="hero-sub">Upload your CSV or Excel file. Define your columns. Get instant forecasts, insights, and beautiful charts — no setup required.</p>
+
+    {% if request.args.get('error') %}
+    <div class="alert alert-error">
+      {% if request.args.get('error') == 'invalid' %}⚠️ Please upload a valid CSV or Excel (.xlsx) file.
+      {% elif request.args.get('error') == 'toolarge' %}⚠️ File too large ({{ request.args.get('size') }}MB). Max 50MB.
+      {% elif request.args.get('error') == 'expired' %}⚠️ Session expired. Please re-upload your file.
+      {% elif request.args.get('error') == 'nofiles' %}⚠️ Please select both files before comparing.
+      {% else %}⚠️ Could not parse the file. Check for formatting issues.{% endif %}
+    </div>
+    {% endif %}
+
+    <!-- TABS: single vs compare -->
+    <div class="upload-tabs">
+      <button class="upload-tab {% if not request.args.get('tab') or request.args.get('tab') == 'single' %}active{% endif %}"
+              id="tabSingle" onclick="switchTab('single')">📊 Single Dataset</button>
+      <button class="upload-tab {% if request.args.get('tab') == 'compare' %}active{% endif %}"
+              id="tabCompare" onclick="switchTab('compare')">⚖️ Compare Two Datasets</button>
+    </div>
+
+    <!-- SINGLE UPLOAD -->
+    <div id="panelSingle" class="upload-panel"
+         style="display:{% if request.args.get('tab') == 'compare' %}none{% else %}block{% endif %}">
+      <form id="uploadForm" action="/upload" method="POST" enctype="multipart/form-data">
+        <div class="drop-zone" id="dropZone">
+          <div class="drop-icon">⬆</div>
+          <div class="drop-main">Drop your file here</div>
+          <div class="drop-sub">or click to browse</div>
+          <div class="drop-types">CSV · XLSX · XLS</div>
+          <input type="file" name="file" id="fileInput" accept=".csv,.xlsx,.xls" required>
+        </div>
+        <button type="submit" class="btn-upload" id="uploadBtn">
+          <span id="btnText">Analyse Data →</span>
+          <span id="btnLoader" style="display:none">⏳ Processing…</span>
+        </button>
+      </form>
+      <div id="loadingSkeleton" class="loading-skeleton" style="display:none">
+        <div class="skeleton-bar" style="width:60%"></div>
+        <div class="skeleton-bar" style="width:80%"></div>
+        <div class="skeleton-bar" style="width:50%"></div>
+        <p class="skeleton-label">Reading and analysing your data…</p>
+      </div>
+    </div>
+
+    <!-- COMPARE UPLOAD — plain multipart form, both files in one POST -->
+    <div id="panelCompare" class="upload-panel"
+         style="display:{% if request.args.get('tab') == 'compare' %}block{% else %}none{% endif %}">
+      <form id="compareForm" action="/upload/compare" method="POST" enctype="multipart/form-data">
+        <p class="compare-hint">Upload two datasets to see a side-by-side comparison with KPI deltas and an overlay trend chart.</p>
+        <div class="compare-row">
+          <div class="compare-slot">
+            <div class="compare-label">📁 Dataset A <span style="font-weight:400;color:var(--muted)">(e.g. this year)</span></div>
+            <div class="drop-zone small" id="dropZoneA">
+              <div class="drop-icon">⬆</div>
+              <div class="drop-main" id="nameA">Click or drop file A</div>
+              <div class="drop-types">CSV · XLSX</div>
+              <input type="file" name="file_a" id="fileA" accept=".csv,.xlsx,.xls" required>
+            </div>
+          </div>
+          <div class="compare-vs">vs</div>
+          <div class="compare-slot">
+            <div class="compare-label">📁 Dataset B <span style="font-weight:400;color:var(--muted)">(e.g. last year)</span></div>
+            <div class="drop-zone small" id="dropZoneB">
+              <div class="drop-icon">⬆</div>
+              <div class="drop-main" id="nameB">Click or drop file B</div>
+              <div class="drop-types">CSV · XLSX</div>
+              <input type="file" name="file_b" id="fileB" accept=".csv,.xlsx,.xls" required>
+            </div>
+          </div>
+        </div>
+        <button type="submit" class="btn-upload" id="compareBtn">
+          <span id="compareBtnText">Compare Datasets →</span>
+          <span id="compareBtnLoader" style="display:none">⏳ Processing…</span>
+        </button>
+      </form>
+    </div>
+
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-pill">📊 Revenue Forecasting</div>
+    <div class="feature-pill">📈 Trend Analysis</div>
+    <div class="feature-pill">🗂 Custom Column Mapping</div>
+    <div class="feature-pill">🌍 Regional Breakdown</div>
+    <div class="feature-pill">👤 Sales Rep Performance</div>
+    <div class="feature-pill">⚖️ Dataset Comparison</div>
+    <div class="feature-pill">📄 PDF Export</div>
+    <div class="feature-pill">🌓 Dark / Light Mode</div>
+  </div>
+</div>
+
+<script>
+// ── Tab switching ──────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById("panelSingle").style.display  = tab === "single"  ? "block" : "none";
+  document.getElementById("panelCompare").style.display = tab === "compare" ? "block" : "none";
+  document.getElementById("tabSingle").classList.toggle("active",  tab === "single");
+  document.getElementById("tabCompare").classList.toggle("active", tab === "compare");
+}
+
+// ── Single file drop zone ─────────────────────────────────────────────
+const dropZone  = document.getElementById("dropZone");
+const fileInput = document.getElementById("fileInput");
+const form      = document.getElementById("uploadForm");
+const btnText   = document.getElementById("btnText");
+const btnLoader = document.getElementById("btnLoader");
+const dropMain  = dropZone.querySelector(".drop-main");
+const skeleton  = document.getElementById("loadingSkeleton");
+
+dropZone.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => {
+  const name = fileInput.files[0]?.name;
+  if (name) { dropMain.textContent = name; dropZone.classList.add("has-file"); }
+});
+["dragover","dragleave","drop"].forEach(ev => {
+  dropZone.addEventListener(ev, e => {
+    e.preventDefault();
+    if (ev === "dragover") dropZone.classList.add("drag-over");
+    else if (ev === "dragleave") dropZone.classList.remove("drag-over");
+    else {
+      dropZone.classList.remove("drag-over");
+      const f = e.dataTransfer.files[0];
+      if (f) { fileInput.files = e.dataTransfer.files; dropMain.textContent = f.name; dropZone.classList.add("has-file"); }
+    }
+  });
+});
+form.addEventListener("submit", () => {
+  btnText.style.display   = "none";
+  btnLoader.style.display = "inline";
+  skeleton.style.display  = "block";
+  window.onpageshow = ev => { if (ev.persisted) window.location.reload(); };
+});
+
+// ── Compare drop zones ────────────────────────────────────────────────
+function wireSlot(zoneId, inputId, nameId) {
+  const zone  = document.getElementById(zoneId);
+  const input = document.getElementById(inputId);
+  const lbl   = document.getElementById(nameId);
+  zone.addEventListener("click", () => input.click());
+  input.addEventListener("change", () => {
+    if (input.files[0]) { lbl.textContent = input.files[0].name; zone.classList.add("has-file"); }
+  });
+  ["dragover","dragleave","drop"].forEach(ev => {
+    zone.addEventListener(ev, e => {
+      e.preventDefault();
+      if (ev === "dragover") zone.classList.add("drag-over");
+      else if (ev === "dragleave") zone.classList.remove("drag-over");
+      else {
+        zone.classList.remove("drag-over");
+        const f = e.dataTransfer.files[0];
+        if (f) { input.files = e.dataTransfer.files; lbl.textContent = f.name; zone.classList.add("has-file"); }
+      }
+    });
+  });
+}
+wireSlot("dropZoneA", "fileA", "nameA");
+wireSlot("dropZoneB", "fileB", "nameB");
+
+document.getElementById("compareForm").addEventListener("submit", function() {
+  document.getElementById("compareBtnText").style.display   = "none";
+  document.getElementById("compareBtnLoader").style.display = "inline";
+});
+
+// ── Back-button reload ────────────────────────────────────────────────
+window.addEventListener("pageshow", e => { if (e.persisted) window.location.reload(); });
+
+// ── Theme ─────────────────────────────────────────────────────────────
+const btn = document.getElementById("themeToggle");
+const icon = btn.querySelector(".theme-icon");
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  icon.textContent = t === "dark" ? "🌙" : "☀️";
+  localStorage.setItem("dl_theme", t);
+}
+btn.addEventListener("click", () => {
+  applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+});
+applyTheme(localStorage.getItem("dl_theme") || "dark");
+</script>
+</body>
+</html>

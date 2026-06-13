@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DataLens Export — {{ filename }}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 12px;
+         color: #1e293b; background: #fff; padding: 20px; }
+
+  h1 { font-size: 22px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+  .subtitle { color: #64748b; font-size: 12px; margin-bottom: 20px; }
+
+  /* KPI row */
+  .kpi-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .kpi { flex: 1; min-width: 120px; background: #f8fafc; border: 1px solid #e2e8f0;
+         border-radius: 8px; padding: 12px 14px; }
+  .kpi-label { font-size: 10px; text-transform: uppercase; color: #94a3b8;
+               letter-spacing: 0.5px; margin-bottom: 4px; }
+  .kpi-value { font-size: 22px; font-weight: 700; color: #1e293b; }
+  .kpi.accent { border-color: #6366f1; background: #f5f3ff; }
+  .kpi.green  { border-color: #10b981; background: #f0fdf4; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  th { text-align: left; font-size: 10px; text-transform: uppercase;
+       color: #94a3b8; letter-spacing: 0.5px; padding: 6px 8px;
+       border-bottom: 1px solid #e2e8f0; }
+  td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; font-size: 12px; }
+  tr:last-child td { border: none; }
+
+  /* Two-column layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .section-title { font-size: 13px; font-weight: 600; margin-bottom: 10px;
+                   color: #334155; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; }
+
+  /* Insights */
+  .insight { padding: 8px 12px; background: #f8fafc; border-left: 3px solid #6366f1;
+             border-radius: 4px; margin-bottom: 8px; font-size: 12px; color: #475569; }
+  .insight b { color: #1e293b; }
+
+  /* Quality */
+  .quality-bar-wrap { height: 4px; background: #e2e8f0; border-radius: 999px; overflow: hidden; margin: 4px 0; }
+  .quality-bar { height: 100%; background: #6366f1; border-radius: 999px; }
+
+  /* Top performers bar */
+  .perf-bar-wrap { height: 3px; background: #f1f5f9; border-radius: 999px; overflow: hidden; }
+  .perf-bar { height: 100%; background: linear-gradient(90deg, #6366f1, #22d3ee); border-radius: 999px; }
+
+  /* Warnings */
+  .warn-box { background: #fffbeb; border: 1px solid #f59e0b; border-radius: 6px;
+              padding: 10px 14px; margin-bottom: 16px; font-size: 11px; color: #92400e; }
+
+  /* Schema */
+  .schema-tag { display: inline-block; padding: 2px 8px; background: #eff6ff;
+                border: 1px solid #bfdbfe; border-radius: 4px; font-size: 10px;
+                color: #1d4ed8; margin: 2px; }
+
+  .footer { margin-top: 30px; padding-top: 12px; border-top: 1px solid #e2e8f0;
+            font-size: 10px; color: #94a3b8; }
+</style>
+</head>
+<body>
+
+<h1>◈ DataLens — Sales Analysis Report</h1>
+<div class="subtitle">
+  File: {{ filename or 'Uploaded dataset' }} ·
+  Rows: {{ "{:,}".format(analysis.quality.total_rows) }} ·
+  Data completeness: {{ analysis.quality.completeness }}%
+</div>
+
+{% if validation_warnings %}
+<div class="warn-box">
+  <strong>⚠️ Schema Warnings:</strong>
+  {% for col, msg in validation_warnings.items() %}
+  <div>{{ col }}: {{ msg }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- KPI STRIP -->
+<div class="kpi-row">
+  {% if analysis.kpis.revenue is defined %}
+  <div class="kpi accent">
+    <div class="kpi-label">Total Revenue</div>
+    <div class="kpi-value">${{ "{:,.0f}".format(analysis.kpis.revenue) }}</div>
+  </div>
+  {% endif %}
+  {% if analysis.kpis.total_profit is defined %}
+  <div class="kpi green">
+    <div class="kpi-label">Total Profit</div>
+    <div class="kpi-value">${{ "{:,.0f}".format(analysis.kpis.total_profit) }}</div>
+  </div>
+  {% endif %}
+  <div class="kpi">
+    <div class="kpi-label">Total Orders</div>
+    <div class="kpi-value">{{ "{:,}".format(analysis.kpis.total_orders) }}</div>
+  </div>
+  {% if analysis.kpis.avg_order_value is defined %}
+  <div class="kpi">
+    <div class="kpi-label">Avg Order Value</div>
+    <div class="kpi-value">${{ "{:,.0f}".format(analysis.kpis.avg_order_value) }}</div>
+  </div>
+  {% endif %}
+  {% if analysis.kpis.profit_margin is defined %}
+  <div class="kpi">
+    <div class="kpi-label">Profit Margin</div>
+    <div class="kpi-value">{{ analysis.kpis.profit_margin }}%</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- FORECAST -->
+{% if analysis.forecast.next_period is defined %}
+<div class="kpi-row">
+  <div class="kpi" style="border-color: {% if analysis.forecast.trend == 'up' %}#10b981{% else %}#f43f5e{% endif %}">
+    <div class="kpi-label">Forecast — Next Period</div>
+    <div class="kpi-value">${{ "{:,.0f}".format(analysis.forecast.next_period) }}</div>
+    <div style="font-size:11px; color:#64748b; margin-top:4px">
+      {{ '▲' if analysis.forecast.growth_rate >= 0 else '▼' }}
+      {{ analysis.forecast.growth_rate | abs }}% vs recent avg ·
+      {{ analysis.forecast.confidence }}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="two-col">
+
+  <!-- INSIGHTS -->
+  <div>
+    <div class="section-title">🧠 Insights</div>
+    {% for insight in analysis.insights %}
+    <div class="insight">{{ insight | safe }}</div>
+    {% endfor %}
+  </div>
+
+  <!-- DATA QUALITY -->
+  <div>
+    <div class="section-title">🧪 Data Quality</div>
+    <table>
+      <tr><td>Completeness</td><td><strong>{{ analysis.quality.completeness }}%</strong>
+        <div class="quality-bar-wrap"><div class="quality-bar" style="width:{{ analysis.quality.completeness }}%"></div></div>
+      </td></tr>
+      <tr><td>Total Rows</td><td>{{ "{:,}".format(analysis.quality.total_rows) }}</td></tr>
+      <tr><td>Missing Values</td><td>{{ analysis.quality.missing_values }}</td></tr>
+      {% for col, cnt in analysis.quality.missing_by_col.items() %}
+      <tr><td style="padding-left:16px; color:#94a3b8">{{ col }}</td><td style="color:#f59e0b">{{ cnt }} missing</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+
+</div>
+
+<!-- TOP PERFORMERS -->
+{% if analysis.top_performers %}
+<div class="two-col">
+  {% for role_key, data in analysis.top_performers.items() %}
+  <div>
+    <div class="section-title">
+      {% if role_key == 'product_name' %}📦 Top Products
+      {% elif role_key == 'salesperson' %}👤 Top Sales Reps
+      {% elif role_key == 'region' %}🌍 Top Regions
+      {% elif role_key == 'customer_name' %}🧑‍💼 Top Customers
+      {% endif %}
+    </div>
+    <table>
+      <tr><th>#</th><th>Name</th><th>Revenue</th></tr>
+      {% for i in range(data['names'] | length) %}
+      <tr>
+        <td>{{ i+1 }}</td>
+        <td>
+          {{ data['names'][i] }}
+          <div class="perf-bar-wrap">
+            <div class="perf-bar" style="width:{{ (data['values'][i] / (data['values'][0] or 1) * 100)|round }}%"></div>
+          </div>
+        </td>
+        <td>${{ "{:,.0f}".format(data['values'][i]) }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ACTIVE SCHEMA -->
+<div>
+  <div class="section-title" style="margin-top:16px">🗂 Active Schema</div>
+  {% for col, role in schema.items() %}
+  {% if role != 'ignore' %}
+  <span class="schema-tag">{{ roles[role].icon if role in roles else '' }} {{ col }} → {{ roles[role].label if role in roles else role }}</span>
+  {% endif %}
+  {% endfor %}
+</div>
+
+<div class="footer">
+  Generated by ◈ DataLens Sales Intelligence Platform · Report is based on uploaded data only.
+</div>
+
+</body>
+</html>

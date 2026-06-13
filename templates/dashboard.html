@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Dashboard — DataLens</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="dashboard-page">
+
+<nav class="top-nav sticky">
+  <a href="/" class="logo">◈ DataLens</a>
+  <div class="nav-steps">
+    <span class="step done">1 Upload</span>
+    <span class="step-sep">→</span>
+    <span class="step done">2 Configure</span>
+    <span class="step-sep">→</span>
+    <span class="step active">3 Dashboard</span>
+  </div>
+  <div class="nav-actions">
+    <a href="/export/pdf" class="btn-reconfigure" title="Export as PDF">📄 Export PDF</a>
+    <a href="/" class="btn-reconfigure">⬆ New Upload</a>
+    <a href="/configure" class="btn-reconfigure">⚙ Reconfigure</a>
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme"><span class="theme-icon">🌙</span></button>
+  </div>
+</nav>
+
+<!-- LOADING SKELETON (shown while page data loads) -->
+<div id="pageSkeleton" class="page-skeleton">
+  <div class="skeleton-kpi-row">
+    <div class="sk-kpi"></div><div class="sk-kpi"></div><div class="sk-kpi"></div><div class="sk-kpi"></div>
+  </div>
+  <div class="skeleton-body">
+    <div class="sk-chart-tall"></div>
+    <div class="sk-side">
+      <div class="sk-card"></div><div class="sk-card"></div><div class="sk-card"></div>
+    </div>
+  </div>
+</div>
+
+<div id="pageContent" style="display:none">
+<div class="dashboard-wrapper">
+
+  {% if validation_warnings %}
+  <div class="warnings-bar">
+    <div class="warnings-title">⚠️ Schema Warnings — check these before trusting the analysis</div>
+    {% for col, msg in validation_warnings.items() %}
+    <div class="warning-row">
+      <span class="warning-col">{{ col }}</span>
+      <span class="warning-msg">{{ msg }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- DATE RANGE FILTER -->
+  {% if analysis.date_range is defined %}
+  <div class="date-filter-bar" id="dateFilterBar">
+    <span class="date-filter-label">📅 Filter by date:</span>
+    <input type="date" id="dateFrom" class="date-input"
+           value="{{ analysis.date_range.min }}"
+           min="{{ analysis.date_range.min }}"
+           max="{{ analysis.date_range.max }}">
+    <span class="date-sep">→</span>
+    <input type="date" id="dateTo" class="date-input"
+           value="{{ analysis.date_range.max }}"
+           min="{{ analysis.date_range.min }}"
+           max="{{ analysis.date_range.max }}">
+    <button class="btn-filter" id="applyFilter">Apply</button>
+    <button class="btn-filter outline" id="resetFilter">Reset</button>
+    <span class="date-status" id="filterStatus"></span>
+  </div>
+  {% endif %}
+
+  <!-- KPI STRIP -->
+  <section class="kpi-section" id="kpiSection">
+    <div class="kpi-strip" id="kpiStrip">
+      {% if analysis.kpis.revenue is defined %}
+      <div class="kpi-card accent">
+        <div class="kpi-label">Total Revenue</div>
+        <div class="kpi-value" id="kpiRevenue">${{ "{:,.0f}".format(analysis.kpis.revenue) }}</div>
+      </div>
+      {% endif %}
+      {% if analysis.kpis.total_profit is defined %}
+      <div class="kpi-card green">
+        <div class="kpi-label">Total Profit</div>
+        <div class="kpi-value" id="kpiProfit">${{ "{:,.0f}".format(analysis.kpis.total_profit) }}</div>
+        {% if analysis.kpis.profit_margin is defined %}
+        <div class="kpi-sub">{{ analysis.kpis.profit_margin }}% margin</div>
+        {% endif %}
+      </div>
+      {% endif %}
+      <div class="kpi-card">
+        <div class="kpi-label">Total Orders</div>
+        <div class="kpi-value" id="kpiOrders">{{ "{:,}".format(analysis.kpis.total_orders) }}</div>
+      </div>
+      {% if analysis.kpis.avg_order_value is defined %}
+      <div class="kpi-card">
+        <div class="kpi-label">Avg Order Value</div>
+        <div class="kpi-value" id="kpiAov">${{ "{:,.0f}".format(analysis.kpis.avg_order_value) }}</div>
+      </div>
+      {% endif %}
+      {% if analysis.kpis.total_units is defined %}
+      <div class="kpi-card">
+        <div class="kpi-label">Units Sold</div>
+        <div class="kpi-value" id="kpiUnits">{{ "{:,}".format(analysis.kpis.total_units) }}</div>
+      </div>
+      {% endif %}
+      {% if analysis.forecast.next_period is defined %}
+      <div class="kpi-card forecast-kpi {{ analysis.forecast.trend }}">
+        <div class="kpi-label">Forecast (next period)</div>
+        <div class="kpi-value">${{ "{:,.0f}".format(analysis.forecast.next_period) }}</div>
+        <div class="kpi-sub">
+          {% if analysis.forecast.growth_rate >= 0 %}▲{% else %}▼{% endif %}
+          {{ analysis.forecast.growth_rate | abs }}% vs recent avg
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- DRILL-DOWN MODAL -->
+  <div id="drillModal" class="drill-modal" style="display:none">
+    <div class="drill-modal-box">
+      <div class="drill-modal-header">
+        <span class="drill-modal-title" id="drillTitle">Detail</span>
+        <button class="drill-close" onclick="closeDrill()">✕</button>
+      </div>
+      <div class="drill-modal-body">
+        <canvas id="drillChart" height="260"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="dashboard-body">
+
+    <!-- LEFT COLUMN -->
+    <div class="left-col">
+
+      {% if analysis.charts.time_series is defined %}
+      <div class="chart-panel">
+        <div class="panel-header">
+          <span class="panel-title">📅 Revenue Over Time</span>
+          <span class="panel-sub" id="tsSubLabel">Monthly trend</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="timeChart"></canvas>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if analysis.charts.product_name is defined %}
+      <div class="chart-panel">
+        <div class="panel-header">
+          <span class="panel-title">📦 Revenue by Product</span>
+          <span class="panel-sub">Top 15 · click a bar to drill in</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="productChart"></canvas>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if analysis.charts.category is defined %}
+      <div class="chart-panel half">
+        <div class="panel-header">
+          <span class="panel-title">🏷️ By Category</span>
+          <span class="panel-sub">click to drill in</span>
+        </div>
+        <div class="chart-wrap pie-wrap">
+          <canvas id="categoryChart"></canvas>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if analysis.charts.region is defined %}
+      <div class="chart-panel half">
+        <div class="panel-header">
+          <span class="panel-title">🌍 By Region</span>
+          <span class="panel-sub">click to drill in</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="regionChart"></canvas>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if analysis.charts.salesperson is defined %}
+      <div class="chart-panel">
+        <div class="panel-header">
+          <span class="panel-title">👤 Sales Rep Performance</span>
+          <span class="panel-sub">click to drill in</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="salesChart"></canvas>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if analysis.charts.channel is defined %}
+      <div class="chart-panel half">
+        <div class="panel-header"><span class="panel-title">📡 By Channel</span></div>
+        <div class="chart-wrap pie-wrap"><canvas id="channelChart"></canvas></div>
+      </div>
+      {% endif %}
+
+      {% if analysis.charts.status is defined %}
+      <div class="chart-panel half">
+        <div class="panel-header"><span class="panel-title">✅ Order Status</span></div>
+        <div class="chart-wrap pie-wrap"><canvas id="statusChart"></canvas></div>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="right-col">
+
+      <div class="insights-panel">
+        <div class="panel-header"><span class="panel-title">🧠 Insights</span></div>
+        <ul class="insights-list" id="insightsList">
+          {% for insight in analysis.insights %}
+          <li>{{ insight | safe }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      {% if analysis.forecast.next_period is defined %}
+      <div class="forecast-panel {{ analysis.forecast.trend }}">
+        <div class="panel-header"><span class="panel-title">📈 Forecast Engine</span></div>
+        <div class="forecast-big">${{ "{:,.0f}".format(analysis.forecast.next_period) }}</div>
+        <div class="forecast-direction">
+          {% if analysis.forecast.growth_rate >= 0 %}
+          <span class="arrow up">▲ {{ analysis.forecast.growth_rate }}% predicted growth</span>
+          {% else %}
+          <span class="arrow down">▼ {{ analysis.forecast.growth_rate | abs }}% predicted decline</span>
+          {% endif %}
+        </div>
+        <div class="forecast-method">{{ analysis.forecast.confidence }}</div>
+      </div>
+      {% endif %}
+
+      <div class="quality-panel">
+        <div class="panel-header"><span class="panel-title">🧪 Data Quality</span></div>
+        <div class="quality-row">
+          <span>Completeness</span>
+          <span class="quality-val {{ 'good' if analysis.quality.completeness > 90 else 'warn' }}">
+            {{ analysis.quality.completeness }}%
+          </span>
+        </div>
+        <div class="quality-bar-wrap">
+          <div class="quality-bar" style="width: {{ analysis.quality.completeness }}%"></div>
+        </div>
+        <div class="quality-row">
+          <span>Missing Values</span>
+          <span class="quality-val {{ 'good' if analysis.quality.missing_values == 0 else 'warn' }}">
+            {{ analysis.quality.missing_values }}
+          </span>
+        </div>
+        <div class="quality-row">
+          <span>Total Rows</span>
+          <span class="quality-val">{{ "{:,}".format(analysis.quality.total_rows) }}</span>
+        </div>
+        {% if analysis.quality.missing_by_col %}
+        <div class="quality-detail">
+          <div class="quality-detail-title">Missing by column:</div>
+          {% for col, cnt in analysis.quality.missing_by_col.items() %}
+          <div class="quality-row small">
+            <span>{{ col }}</span><span class="warn">{{ cnt }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+
+      {% for role_key, data in analysis.top_performers.items() %}
+      <div class="top-panel">
+        <div class="panel-header">
+          <span class="panel-title">
+            {% if role_key == 'product_name' %}📦 Top Products
+            {% elif role_key == 'salesperson' %}👤 Top Sales Reps
+            {% elif role_key == 'region' %}🌍 Top Regions
+            {% elif role_key == 'customer_name' %}🧑‍💼 Top Customers
+            {% endif %}
+          </span>
+        </div>
+        {% set vals = data['values'] %}
+        {% set names = data['names'] %}
+        {% set max_val = vals[0] if vals else 1 %}
+        {% for i in range(names | length) %}
+        <div class="top-row">
+          <div class="top-rank">{{ i + 1 }}</div>
+          <div class="top-info">
+            <div class="top-name">{{ names[i] }}</div>
+            <div class="top-bar-wrap">
+              <div class="top-bar" style="width: {{ (vals[i] / max_val * 100) | round }}%"></div>
+            </div>
+          </div>
+          <div class="top-val">${{ "{:,.0f}".format(vals[i]) }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+
+      <div class="schema-panel">
+        <div class="panel-header"><span class="panel-title">🗂 Active Schema</span></div>
+        {% for col, role in schema.items() %}
+        {% if role != 'ignore' %}
+        <div class="schema-row">
+          <span class="schema-col">{{ col }}</span>
+          <span class="schema-role">{{ roles[role].icon if role in roles else '' }} {{ roles[role].label if role in roles else role }}</span>
+        </div>
+        {% endif %}
+        {% endfor %}
+        <a href="/configure" class="edit-schema-link">✏ Edit schema</a>
+      </div>
+
+    </div>
+  </div>
+</div>
+</div><!-- /pageContent -->
+
+<script>
+// ── Initial data from server ─────────────────────────────────────────────
+let CHARTS  = {{ analysis.charts | tojson }};
+const DATE_MIN = "{{ analysis.date_range.min if analysis.date_range is defined else '' }}";
+const DATE_MAX = "{{ analysis.date_range.max if analysis.date_range is defined else '' }}";
+
+// ── Theme ────────────────────────────────────────────────────────────────
+const themeBtn  = document.getElementById("themeToggle");
+const themeIcon = themeBtn.querySelector(".theme-icon");
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  themeIcon.textContent = t === "dark" ? "🌙" : "☀️";
+  localStorage.setItem("dl_theme", t);
+  Chart.defaults.color = t === "dark" ? "#94a3b8" : "#475569";
+  rebuildCharts();
+}
+themeBtn.addEventListener("click", () => {
+  applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+});
+
+// ── Palette ──────────────────────────────────────────────────────────────
+const PALETTE = [
+  "#6366f1","#22d3ee","#f59e0b","#10b981","#f43f5e",
+  "#8b5cf6","#06b6d4","#84cc16","#fb7185","#a78bfa",
+  "#34d399","#fbbf24","#60a5fa","#c084fc","#2dd4bf"
+];
+
+function gridColor() {
+  return document.documentElement.getAttribute("data-theme") === "dark"
+    ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.06)";
+}
+
+// ── Chart registry (so we can destroy+recreate on filter/theme change) ───
+const chartInstances = {};
+
+function destroyChart(id) {
+  if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+}
+
+// ── Drill-down modal ─────────────────────────────────────────────────────
+let drillChartInst = null;
+function openDrill(title, labels, values) {
+  document.getElementById("drillTitle").textContent = title;
+  document.getElementById("drillModal").style.display = "flex";
+  if (drillChartInst) { drillChartInst.destroy(); drillChartInst = null; }
+  const ctx = document.getElementById("drillChart");
+  drillChartInst = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: PALETTE, borderRadius: 6, maxBarThickness: 28 }]
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: gridColor() }, ticks: { color: Chart.defaults.color } },
+        y: { grid: { color: gridColor() }, ticks: { color: Chart.defaults.color } },
+      }
+    }
+  });
+}
+function closeDrill() { document.getElementById("drillModal").style.display = "none"; }
+document.getElementById("drillModal").addEventListener("click", e => {
+  if (e.target === document.getElementById("drillModal")) closeDrill();
+});
+
+// ── Chart builders ───────────────────────────────────────────────────────
+Chart.defaults.font.family = "'DM Sans', sans-serif";
+
+function makeBar(id, data, horizontal = false, drillLabel = "") {
+  const ctx = document.getElementById(id);
+  if (!ctx || !data) return;
+  destroyChart(id);
+  chartInstances[id] = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: data.labels,
+      datasets: [{
+        data: data.values,
+        backgroundColor: PALETTE.slice(0, data.labels.length),
+        borderRadius: 6,
+        maxBarThickness: 32,
+      }]
+    },
+    options: {
+      indexAxis: horizontal ? "y" : "x",
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: gridColor() }, ticks: { color: Chart.defaults.color } },
+        y: { grid: { color: gridColor() }, ticks: { color: Chart.defaults.color } }
+      },
+      onClick(_, elements) {
+        if (!elements.length || !drillLabel) return;
+        const i = elements[0].index;
+        openDrill(`${drillLabel}: ${data.labels[i]}`, data.labels, data.values);
+      },
+      onHover(evt, el) {
+        evt.native.target.style.cursor = (el.length && drillLabel) ? "pointer" : "default";
+      }
+    }
+  });
+}
+
+function makePie(id, data, drillLabel = "") {
+  const ctx = document.getElementById(id);
+  if (!ctx || !data) return;
+  destroyChart(id);
+  chartInstances[id] = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: data.labels,
+      datasets: [{
+        data: data.values,
+        backgroundColor: PALETTE.slice(0, data.labels.length),
+        borderWidth: 2,
+        borderColor: document.documentElement.getAttribute("data-theme") === "dark"
+          ? "#0d1b2a" : "#ffffff",
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: "right", labels: { boxWidth: 12, font: { size: 12 } } } },
+      onClick(_, elements) {
+        if (!elements.length || !drillLabel) return;
+        const i = elements[0].index;
+        openDrill(`${drillLabel}: ${data.labels[i]}`, data.labels, data.values);
+      },
+      onHover(evt, el) {
+        evt.native.target.style.cursor = (el.length && drillLabel) ? "pointer" : "default";
+      }
+    }
+  });
+}
+
+function makeLine(id, data) {
+  const ctx = document.getElementById(id);
+  if (!ctx || !data) return;
+  destroyChart(id);
+  chartInstances[id] = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: data.labels,
+      datasets: [{
+        data: data.values,
+        borderColor: "#6366f1",
+        backgroundColor: "rgba(99,102,241,0.1)",
+        borderWidth: 2.5,
+        pointRadius: 4,
+        pointBackgroundColor: "#6366f1",
+        tension: 0.4,
+        fill: true,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: gridColor() }, ticks: { color: Chart.defaults.color } },
+        y: { grid: { color: gridColor() }, ticks: { color: Chart.defaults.color } }
+      }
+    }
+  });
+}
+
+function rebuildCharts() {
+  makeLine("timeChart", CHARTS.time_series);
+  makeBar("productChart",  CHARTS.product_name, true,  "Product");
+  makePie("categoryChart", CHARTS.category,            "Category");
+  makeBar("regionChart",   CHARTS.region,       false, "Region");
+  makeBar("salesChart",    CHARTS.salesperson,  true,  "Sales Rep");
+  makePie("channelChart",  CHARTS.channel,             "Channel");
+  makePie("statusChart",   CHARTS.status,              "Status");
+}
+
+// ── Date filter ─────────────────────────────────────────────────────────
+const applyBtn  = document.getElementById("applyFilter");
+const resetBtn  = document.getElementById("resetFilter");
+const statusEl  = document.getElementById("filterStatus");
+
+async function applyDateFilter(from, to) {
+  if (statusEl) statusEl.textContent = "⏳ Filtering…";
+  try {
+    const r = await fetch(`/api/filter?from=${from}&to=${to}`);
+    const data = await r.json();
+    CHARTS = data.charts || CHARTS;
+    updateKPIs(data.kpis || {});
+    updateInsights(data.insights || []);
+    rebuildCharts();
+    if (statusEl) statusEl.textContent = `✅ Filtered: ${from} → ${to}`;
+  } catch(e) {
+    if (statusEl) statusEl.textContent = "⚠️ Filter failed";
+  }
+}
+
+if (applyBtn) {
+  applyBtn.addEventListener("click", () => {
+    const from = document.getElementById("dateFrom").value;
+    const to   = document.getElementById("dateTo").value;
+    if (from && to) applyDateFilter(from, to);
+  });
+}
+if (resetBtn) {
+  resetBtn.addEventListener("click", () => {
+    document.getElementById("dateFrom").value = DATE_MIN;
+    document.getElementById("dateTo").value   = DATE_MAX;
+    if (statusEl) statusEl.textContent = "";
+    applyDateFilter(DATE_MIN, DATE_MAX);
+  });
+}
+
+function updateKPIs(kpis) {
+  const fmt = v => v != null ? `$${Number(v).toLocaleString("en-US", {maximumFractionDigits:0})}` : null;
+  const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.textContent = val; };
+  set("kpiRevenue", fmt(kpis.revenue));
+  set("kpiProfit",  fmt(kpis.total_profit));
+  set("kpiOrders",  kpis.total_orders != null ? Number(kpis.total_orders).toLocaleString() : null);
+  set("kpiAov",     fmt(kpis.avg_order_value));
+  set("kpiUnits",   kpis.total_units  != null ? Number(kpis.total_units).toLocaleString()  : null);
+}
+
+function updateInsights(insights) {
+  const el = document.getElementById("insightsList");
+  if (!el) return;
+  el.innerHTML = insights.map(i => `<li>${i}</li>`).join("");
+}
+
+// ── Boot sequence ────────────────────────────────────────────────────────
+window.addEventListener("DOMContentLoaded", () => {
+  const saved = localStorage.getItem("dl_theme") || "dark";
+  applyTheme(saved);
+
+  // Show skeleton briefly, then reveal content
+  setTimeout(() => {
+    document.getElementById("pageSkeleton").style.display = "none";
+    document.getElementById("pageContent").style.display  = "block";
+    rebuildCharts();
+  }, 300);
+});
+
+window.addEventListener("pageshow", e => { if (e.persisted) window.location.reload(); });
+</script>
+</body>
+</html>

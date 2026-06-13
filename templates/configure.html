@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Configure — DataLens</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/style.css">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+</head>
+<body class="configure-page">
+
+<nav class="top-nav sticky">
+  <a href="/" class="logo">◈ DataLens</a>
+
+  {% if is_compare %}
+  <!-- Compare-mode step indicator -->
+  <div class="nav-steps">
+    <span class="step done">1 Upload</span>
+    <span class="step-sep">→</span>
+    <span class="step {% if not configure_b %}active{% else %}done{% endif %}">2 Map A</span>
+    <span class="step-sep">→</span>
+    <span class="step {% if configure_b %}active{% endif %}">3 Map B</span>
+    <span class="step-sep">→</span>
+    <span class="step">4 Compare</span>
+  </div>
+  {% else %}
+  <div class="nav-steps">
+    <span class="step done">1 Upload</span>
+    <span class="step-sep">→</span>
+    <span class="step active">2 Configure</span>
+    <span class="step-sep">→</span>
+    <span class="step">3 Dashboard</span>
+  </div>
+  {% endif %}
+
+  <button class="theme-toggle" id="themeToggle" title="Toggle theme"><span class="theme-icon">🌙</span></button>
+</nav>
+
+<div class="configure-wrapper">
+  <div class="configure-header">
+    {% if step_label %}
+    <div class="compare-step-badge">
+      {% if configure_b %}🅱{% else %}🅰{% endif %} {{ step_label }}
+    </div>
+    {% endif %}
+
+    <h1>Map your columns</h1>
+    <p>Tell DataLens what each column represents. Better labels = smarter analysis. Uncheck any column to exclude it.</p>
+
+    {% if shape[0] %}
+    <div class="dataset-badge">
+      <span>📄 {{ shape[0] }} rows</span>
+      <span>·</span>
+      <span>🗂 {{ shape[1] }} columns detected</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <form method="POST" id="configForm">
+
+    <div class="role-legend">
+      <span class="legend-item dim">⬡ Dimension</span>
+      <span class="legend-item time">⬡ Time</span>
+      <span class="legend-item metric">⬡ Metric</span>
+      <span class="legend-item id">⬡ Identifier</span>
+      <span class="legend-item none">⬡ Ignore</span>
+    </div>
+
+    <div class="columns-grid">
+      {% for col in columns %}
+      {% set guess     = guesses.get(col, 'ignore') %}
+      {% set sample    = samples.get(col, []) %}
+      {% set role_info = roles.get(guess, roles['ignore']) %}
+
+      <div class="col-card {{ role_info.group }}" id="card-{{ loop.index }}">
+        <div class="col-card-header">
+          <label class="toggle-wrap">
+            <input type="checkbox" name="enable_{{ col }}" id="chk-{{ loop.index }}"
+                   class="col-toggle" {% if guess != 'ignore' %}checked{% endif %}
+                   onchange="toggleCard({{ loop.index }})">
+            <span class="toggle-slider"></span>
+          </label>
+          <div class="col-name" title="{{ col }}">{{ col }}</div>
+        </div>
+
+        <div class="col-samples">
+          {% for v in sample[:3] %}
+          <span class="sample-chip">{{ v[:20] }}</span>
+          {% endfor %}
+        </div>
+
+        <div class="col-role-select">
+          <select name="role_{{ col }}" id="sel-{{ loop.index }}" class="role-select"
+                  onchange="updateCardRole({{ loop.index }}, this.value)">
+            {% set groups = [
+              ('dimension', 'Dimensions (categorical)'),
+              ('time',      'Time'),
+              ('metric',    'Metrics (numeric)'),
+              ('identifier','Identifiers'),
+              ('none',      'Other'),
+            ] %}
+            {% for grp_key, grp_label in groups %}
+            <optgroup label="{{ grp_label }}">
+              {% for role_key, role_data in roles.items() %}
+              {% if role_data.group == grp_key %}
+              <option value="{{ role_key }}" {% if role_key == guess %}selected{% endif %}>
+                {{ role_data.icon }} {{ role_data.label }}
+              </option>
+              {% endif %}
+              {% endfor %}
+            </optgroup>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-role-badge" id="badge-{{ loop.index }}">
+          {{ role_info.icon }} {{ role_info.label }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="configure-footer">
+      <a href="/" class="btn-secondary">← Back</a>
+      <button type="submit" class="btn-primary">
+        {{ next_label or 'Build Dashboard →' }}
+      </button>
+    </div>
+
+  </form>
+</div>
+
+<script>
+const roleData = {{ roles | tojson }};
+
+function toggleCard(idx) {
+  const chk  = document.getElementById(`chk-${idx}`);
+  const card = document.getElementById(`card-${idx}`);
+  card.classList.toggle("disabled", !chk.checked);
+}
+
+function updateCardRole(idx, roleKey) {
+  const role  = roleData[roleKey] || roleData["ignore"];
+  const card  = document.getElementById(`card-${idx}`);
+  const badge = document.getElementById(`badge-${idx}`);
+  card.className = card.className.replace(/\b(dimension|time|metric|identifier|none)\b/g, "");
+  card.classList.add("col-card", role.group);
+  badge.textContent = `${role.icon} ${role.label}`;
+}
+
+// Init disabled state on load
+document.querySelectorAll(".col-toggle").forEach((chk, i) => {
+  if (!chk.checked) document.getElementById(`card-${i + 1}`)?.classList.add("disabled");
+});
+
+window.addEventListener("pageshow", e => { if (e.persisted) window.location.reload(); });
+
+// Theme
+const btn = document.getElementById("themeToggle");
+const icon = btn.querySelector(".theme-icon");
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  icon.textContent = t === "dark" ? "🌙" : "☀️";
+  localStorage.setItem("dl_theme", t);
+}
+btn.addEventListener("click", () => {
+  applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+});
+applyTheme(localStorage.getItem("dl_theme") || "dark");
+</script>
+</body>
+</html>

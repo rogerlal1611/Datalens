@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Compare — DataLens</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="dashboard-page">
+
+<nav class="top-nav sticky">
+  <a href="/" class="logo">◈ DataLens</a>
+  <span class="compare-badge">⚖️ Comparison Mode</span>
+  <div class="nav-actions">
+    <a href="/dashboard" class="btn-reconfigure">📊 Single View</a>
+    <a href="/"          class="btn-reconfigure">⬆ New Upload</a>
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme"><span class="theme-icon">🌙</span></button>
+  </div>
+</nav>
+
+<div class="dashboard-wrapper">
+
+  <div class="compare-header">
+    <h2 class="compare-title">
+      <span class="label-a">{{ comp.label_a }}</span>
+      <span class="compare-vs-badge">vs</span>
+      <span class="label-b">{{ comp.label_b }}</span>
+    </h2>
+  </div>
+
+  <!-- KPI COMPARISON STRIP -->
+  <section class="kpi-section">
+    <div class="kpi-strip">
+
+      {% for key, d in comp.kpi_compare.items() %}
+      {% if d.a or d.b %}
+      <div class="kpi-card compare-kpi">
+        <div class="kpi-label">
+          {% if key == 'revenue' %}Total Revenue
+          {% elif key == 'total_orders' %}Orders
+          {% elif key == 'avg_order_value' %}Avg Order Value
+          {% elif key == 'total_profit' %}Total Profit
+          {% endif %}
+        </div>
+        <div class="compare-kpi-row">
+          <span class="kpi-half a">${{ "{:,.0f}".format(d.a) if d.a else '—' }}</span>
+          <span class="compare-delta {{ d.dir }}">
+            {% if d.pct >= 0 %}▲{% else %}▼{% endif %}{{ d.pct | abs }}%
+          </span>
+          <span class="kpi-half b">${{ "{:,.0f}".format(d.b) if d.b else '—' }}</span>
+        </div>
+        <div class="compare-kpi-labels">
+          <span>{{ comp.label_a[:14] }}</span>
+          <span>{{ comp.label_b[:14] }}</span>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+
+    </div>
+  </section>
+
+  <!-- OVERLAY TIME SERIES -->
+  {% if comp.ts_a.labels is defined or comp.ts_b.labels is defined %}
+  <div class="chart-panel" style="margin-bottom:20px">
+    <div class="panel-header">
+      <span class="panel-title">📅 Revenue Trend — Overlay</span>
+    </div>
+    <div class="chart-wrap" style="height:300px">
+      <canvas id="overlayChart"></canvas>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- SIDE-BY-SIDE BREAKDOWNS -->
+  <div class="compare-grid">
+
+    <!-- LEFT — Dataset A -->
+    <div class="compare-col">
+      <div class="compare-col-header label-a-bg">{{ comp.label_a }}</div>
+
+      {% if comp.a.charts.product_name is defined %}
+      <div class="chart-panel">
+        <div class="panel-header"><span class="panel-title">📦 Top Products (A)</span></div>
+        <div class="chart-wrap"><canvas id="productA"></canvas></div>
+      </div>
+      {% endif %}
+
+      {% if comp.a.charts.region is defined %}
+      <div class="chart-panel">
+        <div class="panel-header"><span class="panel-title">🌍 By Region (A)</span></div>
+        <div class="chart-wrap"><canvas id="regionA"></canvas></div>
+      </div>
+      {% endif %}
+
+      {% if comp.a.charts.category is defined %}
+      <div class="chart-panel">
+        <div class="panel-header"><span class="panel-title">🏷️ By Category (A)</span></div>
+        <div class="chart-wrap pie-wrap"><canvas id="categoryA"></canvas></div>
+      </div>
+      {% endif %}
+
+      <!-- Insights A -->
+      <div class="insights-panel">
+        <div class="panel-header"><span class="panel-title">🧠 Insights — {{ comp.label_a }}</span></div>
+        <ul class="insights-list">
+          {% for i in comp.a.insights %}<li>{{ i | safe }}</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+
+    <!-- RIGHT — Dataset B -->
+    <div class="compare-col">
+      <div class="compare-col-header label-b-bg">{{ comp.label_b }}</div>
+
+      {% if comp.b.charts.product_name is defined %}
+      <div class="chart-panel">
+        <div class="panel-header"><span class="panel-title">📦 Top Products (B)</span></div>
+        <div class="chart-wrap"><canvas id="productB"></canvas></div>
+      </div>
+      {% endif %}
+
+      {% if comp.b.charts.region is defined %}
+      <div class="chart-panel">
+        <div class="panel-header"><span class="panel-title">🌍 By Region (B)</span></div>
+        <div class="chart-wrap"><canvas id="regionB"></canvas></div>
+      </div>
+      {% endif %}
+
+      {% if comp.b.charts.category is defined %}
+      <div class="chart-panel">
+        <div class="panel-header"><span class="panel-title">🏷️ By Category (B)</span></div>
+        <div class="chart-wrap pie-wrap"><canvas id="categoryB"></canvas></div>
+      </div>
+      {% endif %}
+
+      <!-- Insights B -->
+      <div class="insights-panel">
+        <div class="panel-header"><span class="panel-title">🧠 Insights — {{ comp.label_b }}</span></div>
+        <ul class="insights-list">
+          {% for i in comp.b.insights %}<li>{{ i | safe }}</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const TS_A  = {{ comp.ts_a | tojson }};
+const TS_B  = {{ comp.ts_b | tojson }};
+const CHT_A = {{ comp.a.charts | tojson }};
+const CHT_B = {{ comp.b.charts | tojson }};
+
+const PALETTE = [
+  "#6366f1","#22d3ee","#f59e0b","#10b981","#f43f5e",
+  "#8b5cf6","#06b6d4","#84cc16","#fb7185","#a78bfa"
+];
+
+Chart.defaults.font.family = "'DM Sans', sans-serif";
+
+function gridColor() {
+  return document.documentElement.getAttribute("data-theme") === "dark"
+    ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.06)";
+}
+
+function makeBar(id, data, horizontal=false) {
+  const ctx = document.getElementById(id);
+  if (!ctx || !data) return;
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: data.labels,
+      datasets: [{ data: data.values, backgroundColor: PALETTE, borderRadius:6, maxBarThickness:28 }]
+    },
+    options: {
+      indexAxis: horizontal ? "y" : "x",
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: gridColor() }, ticks: { color: Chart.defaults.color } },
+        y: { grid: { color: gridColor() }, ticks: { color: Chart.defaults.color } }
+      }
+    }
+  });
+}
+
+function makePie(id, data) {
+  const ctx = document.getElementById(id);
+  if (!ctx || !data) return;
+  new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: data.labels,
+      datasets: [{ data: data.values, backgroundColor: PALETTE, borderWidth:2,
+        borderColor: document.documentElement.getAttribute("data-theme")==="dark" ? "#0d1b2a" : "#fff" }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position:"right", labels: { boxWidth:12, font: { size:12 } } } }
+    }
+  });
+}
+
+// Overlay line chart — two datasets on one canvas
+function makeOverlay() {
+  const ctx = document.getElementById("overlayChart");
+  if (!ctx) return;
+
+  // Merge labels
+  const allLabels = [...new Set([...(TS_A.labels||[]), ...(TS_B.labels||[])])].sort();
+
+  function alignValues(labels, ts) {
+    const map = {};
+    (ts.labels||[]).forEach((l,i) => { map[l] = ts.values[i]; });
+    return labels.map(l => map[l] ?? null);
+  }
+
+  const datasets = [];
+  if (TS_A.labels?.length) {
+    datasets.push({
+      label: "{{ comp.label_a }}",
+      data: alignValues(allLabels, TS_A),
+      borderColor: "#6366f1", backgroundColor: "rgba(99,102,241,0.08)",
+      borderWidth: 2.5, pointRadius: 3, tension: 0.4, fill: true,
+    });
+  }
+  if (TS_B.labels?.length) {
+    datasets.push({
+      label: "{{ comp.label_b }}",
+      data: alignValues(allLabels, TS_B),
+      borderColor: "#f59e0b", backgroundColor: "rgba(245,158,11,0.08)",
+      borderWidth: 2.5, pointRadius: 3, tension: 0.4, fill: true,
+    });
+  }
+
+  new Chart(ctx, {
+    type: "line",
+    data: { labels: allLabels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: true, position: "top" } },
+      scales: {
+        x: { grid: { color: gridColor() }, ticks: { color: Chart.defaults.color } },
+        y: { grid: { color: gridColor() }, ticks: { color: Chart.defaults.color } }
+      }
+    }
+  });
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  const saved = localStorage.getItem("dl_theme") || "dark";
+  document.documentElement.setAttribute("data-theme", saved);
+  document.querySelector(".theme-icon").textContent = saved === "dark" ? "🌙" : "☀️";
+  Chart.defaults.color = saved === "dark" ? "#94a3b8" : "#475569";
+
+  makeOverlay();
+  makeBar("productA",  CHT_A.product_name, true);
+  makeBar("regionA",   CHT_A.region);
+  makePie("categoryA", CHT_A.category);
+  makeBar("productB",  CHT_B.product_name, true);
+  makeBar("regionB",   CHT_B.region);
+  makePie("categoryB", CHT_B.category);
+});
+
+document.getElementById("themeToggle").addEventListener("click", () => {
+  const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  document.querySelector(".theme-icon").textContent = next === "dark" ? "🌙" : "☀️";
+  localStorage.setItem("dl_theme", next);
+  Chart.defaults.color = next === "dark" ? "#94a3b8" : "#475569";
+});
+</script>
+</body>
+</html>
