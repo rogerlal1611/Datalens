@@ -1,4 +1,20 @@
 # ◈ DataLens — Sales Intelligence Platform
+🚀 Just shipped a project I'm genuinely proud of — DataLens, a full-stack sales analytics dashboard built from scratch.
+The idea: most sales teams have their data stuck in CSV exports with no easy way to visualise it. I built the tool I wished existed.
+What it does:
+
+📂 Upload any CSV or Excel sales file (any column structure)
+🧠 Auto-detects what each column means using fuzzy string matching
+📊 Generates instant charts — revenue trend, top products, regional breakdown, sales rep leaderboard
+📈 Forecasts next-period revenue using Linear Regression
+⚖️ Side-by-side comparison of two datasets (e.g. this year vs last year)
+
+🌓 Dark / light mode, mobile responsive, PDF export, interactive drill-down
+Built with: Python · Flask · Pandas · scikit-learn · SQLite · Chart.js
+The part I'm most proud of: the schema detection engine. Real-world sales data is messy — columns named "Gross_Amount", "total_sales", and "invoice_value" all mean the same thing. I wrote a keyword + fuzzy-matching algorithm that handles this automatically across 19 semantic roles.
+🔗 GitHub: [your link here]
+Would love feedback from anyone in data, product, or backend engineering 👇
+#Python #DataAnalytics #Flask #MachineLearning #SalesIntelligence #Portfolio #OpenToWork #DataScience #FullStack
 
 > Upload any CSV or Excel sales file. Map your columns. Get instant forecasts, interactive charts, and PDF reports — no setup required.
 
