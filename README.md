@@ -71,22 +71,6 @@ python app.py
 
 Open: **http://localhost:5000**
 
-### PDF Export (optional)
-
-PDF export requires `wkhtmltopdf` installed on your system:
-
-```bash
-# Ubuntu / Debian
-sudo apt-get install wkhtmltopdf
-
-# macOS
-brew install wkhtmltopdf
-
-# Windows — download installer from https://wkhtmltopdf.org/downloads.html
-```
-
-If `wkhtmltopdf` is not installed, the Export PDF button will return a browser-printable HTML page instead.
-
 ## 📖 How to Use
 
 1. **Upload** — Drag and drop a CSV or Excel file (max 50MB)
@@ -108,12 +92,3 @@ If `wkhtmltopdf` is not installed, the Export PDF button will return a browser-p
 - [ ] Multi-user authentication (Flask-Login)
 - [ ] Docker + one-click Railway/Render deploy
 - [ ] Unit test suite
-
-## 📄 License
-
-MIT
-
-## 👤 Author
-
-**Your Name**  
-[LinkedIn](https://linkedin.com/in/yourprofile) · [GitHub](https://github.com/yourusername)
