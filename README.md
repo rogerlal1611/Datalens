@@ -85,7 +85,7 @@ Open: **http://localhost:5000**
 
 `revenue` · `profit` · `cost` · `quantity` · `discount` · `date` · `product_name` · `category` · `sub_category` · `region` · `salesperson` · `customer_name` · `customer_segment` · `channel` · `payment_method` · `status` · `order_id` · `customer_id`
 
-## 🛣 Roadmap
+## 🛣 Future Updates
 
 - [ ] LLM-powered natural language Q&A on uploaded data
 - [ ] Facebook Prophet seasonal forecasting
